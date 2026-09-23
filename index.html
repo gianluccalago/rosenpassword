@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rosen</title>
+<meta name="description" content="Gerenciador de senhas pessoal, offline, sem servidor.">
+<meta name="theme-color" content="#130912">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rosen">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="fatal hidden" id="fatal" role="alert"></div>
+
+<!-- LOCK / SETUP -->
+<div class="lock" id="lockScreen">
+  <div class="lock-card">
+    <div class="orb" aria-hidden="true"></div>
+    <div class="lock-inner">
+      <div class="brand">Rosen<span>.</span></div>
+      <div class="notice hidden" id="storageNotice"></div>
+
+      <form id="setupView" novalidate>
+        <p class="lead">Primeiro acesso. Crie a senha mestre que protegerá todas as outras.</p>
+        <div class="field">
+          <label for="setupPw">Senha mestre</label>
+          <div class="pw-wrap"><input class="input mono" id="setupPw" type="password" autocomplete="new-password" placeholder="mínimo 10 caracteres"><button class="eye" type="button" data-eye="setupPw" aria-label="Mostrar senha" aria-pressed="false"></button></div>
+          <div class="meter" aria-hidden="true"><i id="setupMeter"></i></div>
+          <div class="hint" id="setupHint">Use uma frase longa. Ela não é armazenada e não pode ser recuperada.</div>
+        </div>
+        <div class="field">
+          <label for="setupPw2">Confirmar senha mestre</label>
+          <input class="input mono" id="setupPw2" type="password" autocomplete="new-password">
+        </div>
+        <div class="notice">Se você esquecer a senha mestre, ninguém consegue abrir o Rosen. Anote-a em um lugar físico seguro.</div>
+        <div class="error" id="setupErr" role="alert"></div>
+        <button class="btn primary block" id="setupBtn" type="submit">Criar Rosen</button>
+        <button class="btn ghost block mt8" id="setupImportBtn" type="button">Já tenho um backup: restaurar</button>
+      </form>
+
+      <form id="unlockView" class="hidden" novalidate>
+        <p class="lead">Digite a senha mestre para abrir.</p>
+        <div class="field">
+          <label for="unlockPw">Senha mestre</label>
+          <div class="pw-wrap"><input class="input mono" id="unlockPw" type="password" autocomplete="current-password"><button class="eye" type="button" data-eye="unlockPw" aria-label="Mostrar senha" aria-pressed="false"></button></div>
+        </div>
+        <div class="error" id="unlockErr" role="alert"></div>
+        <button class="btn primary block" id="unlockBtn" type="submit">Abrir Rosen</button>
+        <button class="btn ghost block mt8" id="unlockImportBtn" type="button">Restaurar de um backup</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">Rosen<span>.</span></div>
+    <div class="menu" id="menu">
+      <button class="btn sm menu-btn" id="menuBtn" type="button" aria-label="Backup e opções" aria-haspopup="true" aria-expanded="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <span class="menu-label">Backup e opções</span>
+      </button>
+      <div class="pop" role="menu" aria-label="Backup e opções">
+        <button id="exportBtn" type="button" role="menuitem">Baixar backup criptografado</button>
+        <button id="shareBtn" type="button" role="menuitem" class="hidden">Compartilhar backup</button>
+        <div class="desc" id="exportDesc">Arquivo .rosen. Só abre com a senha mestre. Guarde em nuvem, pendrive ou e-mail para você mesma.</div>
+        <button id="linkFileBtn" type="button" role="menuitem">Salvar automaticamente em um arquivo</button>
+        <div class="desc" id="linkFileDesc">Escolha um arquivo no computador; cada alteração é gravada nele.</div>
+        <button id="importBtn" type="button" role="menuitem">Restaurar de um backup</button>
+        <hr>
+        <button id="changePwBtn" type="button" role="menuitem">Trocar senha mestre</button>
+        <button id="lockBtn" type="button" role="menuitem">Bloquear agora</button>
+      </div>
+    </div>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input class="input" id="q" type="search" placeholder="Buscar por nome, hospital, login" autocomplete="off" aria-label="Buscar">
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="status" id="status">
+      <button class="status-sum" id="statusSum" type="button" aria-expanded="false" aria-controls="statusList">
+        <i class="dot" id="dotSum"></i><span id="txtSum">Salvo neste navegador</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="status-list" id="statusList">
+        <span><i class="dot" id="dotLocal"></i><span id="txtLocal">Salvo neste navegador</span></span>
+        <span><i class="dot" id="dotFile"></i><span id="txtFile">Sem arquivo vinculado</span></span>
+        <span><i class="dot" id="dotBackup"></i><span id="txtBackup">Nenhum backup baixado</span></span>
+        <span class="grow"></span>
+        <span id="txtCount"></span>
+      </div>
+    </div>
+    <div class="banner hidden" id="banner"></div>
+    <div class="chips" id="chips" role="group" aria-label="Filtrar por categoria"></div>
+    <div id="list"></div>
+  </main>
+  <button class="btn primary fab" id="addBtn" type="button">+ Nova senha</button>
+</div>
+
+<!-- ENTRY MODAL -->
+<div class="modal" id="entryModal" role="dialog" aria-modal="true" aria-labelledby="entryTitle">
+  <form class="dialog sheet" id="entryForm" novalidate>
+    <div class="dialog-head">
+      <h2 id="entryTitle">Nova senha</h2>
+      <button class="ic close" type="button" id="entryClose" aria-label="Fechar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dialog-body">
+      <div class="field"><label for="fName">Do que é esta senha</label><input class="input" id="fName" placeholder="ex.: Tasy, Portal do médico, Gmail" autocomplete="off"></div>
+      <div class="two">
+        <div class="field"><label for="fCat">Categoria</label>
+          <select class="input" id="fCat">
+            <option value="Hospital">Hospital / sistema hospitalar</option>
+            <option value="Pessoal">Pessoal</option>
+            <option value="Trabalho">Trabalho / outros sistemas</option>
+            <option value="Financeiro">Financeiro</option>
+            <option value="Outros">Outros</option>
+          </select></div>
+        <div class="field"><label for="fOrg">Hospital / instituição</label><input class="input" id="fOrg" placeholder="ex.: Hospital Santa Cruz" list="orgList" autocomplete="off"><datalist id="orgList"></datalist></div>
+      </div>
+      <div class="field"><label for="fLogin">Login / usuário</label><input class="input mono" id="fLogin" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="usuário, CRM, e-mail"></div>
+      <div class="field"><label for="fPw">Senha</label>
+        <div class="pw-wrap"><input class="input mono" id="fPw" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"><button class="eye" type="button" data-eye="fPw" aria-label="Mostrar senha" aria-pressed="false"></button></div>
+        <div class="gen">
+          <button class="btn sm" type="button" id="genBtn">Gerar senha forte</button>
+          <label><input type="number" id="genLen" min="8" max="64" value="16" inputmode="numeric" aria-label="Tamanho da senha gerada"> caracteres</label>
+          <label><input type="checkbox" id="genSym" checked> símbolos</label>
+        </div>
+      </div>
+      <div class="field"><label for="fUrl">Link de acesso (opcional)</label><input class="input" id="fUrl" type="url" inputmode="url" autocapitalize="off" placeholder="https://"></div>
+      <div class="field"><label for="fNotes">Observações (opcional)</label><textarea class="input" id="fNotes" placeholder="PIN, pergunta secreta, ramal, quem cadastrou"></textarea></div>
+      <div class="error" id="entryErr" role="alert"></div>
+    </div>
+    <div class="foot">
+      <button class="btn danger hidden" id="deleteBtn" type="button">Excluir</button>
+      <span class="grow"></span>
+      <button class="btn ghost" id="cancelBtn" type="button">Cancelar</button>
+      <button class="btn primary" id="saveBtn" type="submit">Salvar</button>
+    </div>
+  </form>
+</div>
+
+<!-- CHANGE MASTER -->
+<div class="modal" id="pwModal" role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+  <form class="dialog" id="pwForm" novalidate>
+    <div class="dialog-head"><h2 id="pwTitle">Trocar senha mestre</h2></div>
+    <div class="dialog-body">
+      <div class="field"><label for="cpOld">Senha atual</label><input class="input mono" id="cpOld" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="cpNew">Nova senha mestre</label><input class="input mono" id="cpNew" type="password" autocomplete="new-password"><div class="meter" aria-hidden="true"><i id="cpMeter"></i></div></div>
+      <div class="field"><label for="cpNew2">Confirmar nova senha</label><input class="input mono" id="cpNew2" type="password" autocomplete="new-password"></div>
+      <div class="notice">Backups antigos continuam abrindo com a senha antiga. Baixe um novo backup depois de trocar.</div>
+      <div class="error" id="cpErr" role="alert"></div>
+    </div>
+    <div class="foot"><button class="btn ghost" id="cpCancel" type="button">Cancelar</button><button class="btn primary" id="cpSave" type="submit">Trocar senha</button></div>
+  </form>
+</div>
+
+<!-- IMPORT -->
+<div class="modal" id="importModal" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+  <form class="dialog" id="importForm" novalidate>
+    <div class="dialog-head"><h2 id="impTitle">Restaurar backup</h2></div>
+    <div class="dialog-body">
+      <p class="hint" id="importInfo"></p>
+      <div class="field"><label for="impPw">Senha mestre do backup</label><input class="input mono" id="impPw" type="password" autocomplete="off"></div>
+      <div class="notice" id="importWarn">Isso substitui o que está salvo neste navegador pelo conteúdo do backup.</div>
+      <div class="error" id="impErr" role="alert"></div>
+    </div>
+    <div class="foot"><button class="btn ghost" id="impCancel" type="button">Cancelar</button><button class="btn primary" id="impOk" type="submit">Restaurar</button></div>
+  </form>
+</div>
+
+<input type="file" id="fileInput" accept=".rosen,.json,application/json" class="hidden" aria-hidden="true" tabindex="-1">
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<button class="update hidden" id="updateBtn" type="button">Nova versão disponível, toque para atualizar</button>
+
+<script src="app.js"></script>
+</body>
+</html>
