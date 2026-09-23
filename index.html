@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Rosen</title>
 <meta name="description" content="Gerenciador de senhas pessoal, offline, sem servidor.">
 <meta name="theme-color" content="#130912">
@@ -30,6 +30,7 @@
     <div class="orb" aria-hidden="true"></div>
     <div class="lock-inner">
       <div class="brand">Rosen<span>.</span></div>
+      <button class="update hidden" id="updateBtnLock" type="button">Nova versão disponível, toque para atualizar</button>
       <div class="notice hidden" id="storageNotice"></div>
       <div class="notice hidden" id="installNotice">Você está no Safari. Para usar como app: toque em Compartilhar, depois em "Adicionar à Tela de Início", e abra sempre pelo ícone. O que for criado aqui no Safari não aparece no app instalado.</div>
 
@@ -69,6 +70,7 @@
 <div class="app" id="app">
   <header class="top">
     <div class="brand">Rosen<span>.</span></div>
+    <button class="btn primary sm add-top" id="addBtnTop" type="button">+ Nova senha</button>
     <div class="menu" id="menu">
       <button class="btn sm menu-btn" id="menuBtn" type="button" aria-label="Backup e opções" aria-haspopup="true" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -93,6 +95,7 @@
   </header>
 
   <main class="wrap">
+    <button class="update hidden" id="updateBtn" type="button">Nova versão disponível, toque para atualizar</button>
     <div class="status" id="status">
       <button class="status-sum" id="statusSum" type="button" aria-expanded="false" aria-controls="statusList">
         <i class="dot" id="dotSum"></i><span id="txtSum">Salvo neste navegador</span>
@@ -110,7 +113,7 @@
     <div class="chips" id="chips" role="group" aria-label="Filtrar por categoria"></div>
     <div id="list"></div>
   </main>
-  <button class="btn primary fab" id="addBtn" type="button">+ Nova senha</button>
+  <div class="addbar"><button class="btn primary" id="addBtn" type="button">+ Nova senha</button></div>
 </div>
 
 <!-- ENTRY MODAL -->
@@ -187,8 +190,8 @@
 </div>
 
 <input type="file" id="fileInput" accept=".rosen,.json,application/json" class="hidden" aria-hidden="true" tabindex="-1">
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-<button class="update hidden" id="updateBtn" type="button">Nova versão disponível, toque para atualizar</button>
+<div class="toast" id="toast" aria-hidden="true"></div>
+<div class="sr-only" id="srLive" role="status" aria-live="polite"></div>
 
 <script src="app.js"></script>
 </body>

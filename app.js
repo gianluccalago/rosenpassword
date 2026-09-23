@@ -26,7 +26,22 @@ const b64 = u8 => { let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCod
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function toast(msg, ms){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'), ms||2200); }
+// Avisos nunca flutuam sobre o conteúdo: ocupam espaço próprio no cabeçalho do app, do modal aberto ou do cartão de bloqueio.
+function toastHost(){
+  const m = document.querySelector('.modal.on'); if(m) return m.querySelector('.dialog-head');
+  if($('app').classList.contains('on')) return document.querySelector('.top');
+  return document.querySelector('.lock-inner');
+}
+function toast(msg, ms){
+  const t=$('toast'), host=toastHost();
+  if(t.parentElement!==host){ if(host.classList.contains('lock-inner')) host.insertBefore(t, $('updateBtnLock').nextSibling); else host.appendChild(t); }
+  document.querySelectorAll('.toasting').forEach(h=>h.classList.remove('toasting'));
+  t.textContent=msg; t.classList.remove('long'); t.classList.add('on');
+  if(t.scrollWidth > t.clientWidth + 1) t.classList.add('long');
+  else host.classList.add('toasting');
+  const sr=$('srLive'); sr.textContent=''; setTimeout(()=>{ sr.textContent=msg; }, 30);
+  clearTimeout(t._t); t._t=setTimeout(()=>{ t.classList.remove('on','long'); host.classList.remove('toasting'); }, ms||2200);
+}
 function fmt(ts){ if(!ts) return null; const d=new Date(ts); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 function daysAgo(ts){ return ts ? (Date.now()-ts)/86400000 : Infinity; }
 const isTouch = matchMedia('(pointer:coarse)').matches;
@@ -419,6 +434,7 @@ function openEntry(id, draft){
 }
 function closeEntry(){ closeModal('entryModal'); editingId=null; }
 $('addBtn').onclick=()=>openEntry(null);
+$('addBtnTop').onclick=()=>openEntry(null);
 $('cancelBtn').onclick=closeEntry;
 $('entryClose').onclick=closeEntry;
 $('genBtn').onclick=()=>{ $('fPw').value=genPassword(Math.min(64,Math.max(8,+$('genLen').value||16)), $('genSym').checked); setEye('fPw', true); };
@@ -500,9 +516,7 @@ function card(e){
   const org = [esc(e.cat), url].filter(Boolean).join(' · ');
   const id = esc(e.id);
   return `<article class="card">
-    <div class="acts"><button class="ic" type="button" data-edit="${id}" aria-label="Editar ${esc(e.name)}">${I.edit}</button></div>
-    <h3>${esc(e.name)}</h3>
-    <div class="org">${org}</div>
+    <div class="card-head"><div class="card-title"><h3>${esc(e.name)}</h3><div class="org">${org}</div></div><button class="ic" type="button" data-edit="${id}" aria-label="Editar ${esc(e.name)}">${I.edit}</button></div>
     <div class="row"><span class="k">Login</span><span class="v" title="${e.login?esc(e.login):''}">${e.login?esc(e.login):'<span class="none">—</span>'}</span>${e.login?`<button class="ic" type="button" data-copy="login" data-id="${id}" aria-label="Copiar login">${I.copy}</button>`:''}</div>
     <div class="row"><span class="k">Senha</span><span class="v masked">${e.pw?'••••••••••':'<span class="none">—</span>'}</span>${e.pw?`<button class="ic" type="button" data-toggle="${id}" aria-label="Mostrar senha" aria-pressed="false">${I.eye}</button><button class="ic" type="button" data-copy="pw" data-id="${id}" aria-label="Copiar senha">${I.copy}</button>`:''}</div>
     ${e.notes?`<div class="notes">${esc(e.notes)}</div>`:''}
@@ -554,9 +568,20 @@ if('serviceWorker' in navigator && (location.protocol==='https:' || location.hos
   });
 }
 function showUpdate(reg){
-  const b=$('updateBtn'); b.classList.remove('hidden');
-  b.onclick=()=>{ b.classList.add('hidden'); const w=reg.waiting; if(w){ updateRequested=true; w.postMessage({type:'SKIP_WAITING'}); } };
+  const ids=['updateBtn','updateBtnLock'];
+  ids.forEach(id=>{ const b=$(id); b.classList.remove('hidden'); b.onclick=()=>{ ids.forEach(x=>$(x).classList.add('hidden')); const w=reg.waiting; if(w){ updateRequested=true; w.postMessage({type:'SKIP_WAITING'}); } }; });
 }
+
+// ---------- teclado virtual ----------
+// No iOS o teclado não reduz 100dvh; a área visível real vem do visualViewport. O modal acompanha essa área
+// para Salvar/Cancelar ficarem sempre acima do teclado.
+function syncViewport(){
+  const vv=window.visualViewport; if(!vv) return;
+  const r=document.documentElement.style;
+  r.setProperty('--vvh', vv.height+'px'); r.setProperty('--vvt', vv.offsetTop+'px');
+  document.documentElement.classList.toggle('kb', vv.height < window.innerHeight - 120);
+}
+if(window.visualViewport){ visualViewport.addEventListener('resize', syncViewport); visualViewport.addEventListener('scroll', syncViewport); syncViewport(); }
 
 showLock();
 })();
