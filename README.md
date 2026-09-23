@@ -14,9 +14,9 @@ GitHub Pages também funciona: publique a raiz do repositório e use o endereço
 ## Instalar no iPhone
 
 1. Abra o endereço no Safari (precisa ser o Safari; no Chrome do iOS a instalação não fica igual).
-2. Toque em Compartilhar (o quadrado com a seta para cima).
-3. Toque em "Adicionar à Tela de Início" e confirme.
-4. Abra o Rosen pelo ícone da tela inicial. Ele funciona sem internet.
+2. Toque em Compartilhar (o quadrado com a seta para cima). Em versões recentes do iOS ele fica dentro do botão de três pontos.
+3. Toque em "Adicionar à Tela de Início" (pode estar em "Ver mais"). Se aparecer "Abrir como App da Web", deixe ligado. Confirme em "Adicionar".
+4. Abra o Rosen pelo ícone da tela inicial. Ele funciona sem internet. O Safari e o app instalado guardam dados separados: crie o cofre já pelo ícone.
 
 ## Backup
 
@@ -28,8 +28,11 @@ GitHub Pages também funciona: publique a raiz do repositório e use o endereço
 
 - Não há sincronização. Cada navegador e cada aparelho tem seu próprio cofre; a única forma de levar dados de um para outro é o arquivo `.rosen`.
 - No iOS o backup é manual: não há gravação automática em arquivo, e um arquivo compartilhado precisa ser salvo em Arquivos e depois restaurado pelo seletor. O iOS não permite "compartilhar para dentro" de um app web instalado.
-- Se o Safari ficar semanas sem abrir o app, o iOS pode apagar os dados do site. Mantenha um backup recente.
+- Apagar o ícone da tela inicial apaga as senhas junto. O mesmo vale para "Limpar histórico e dados" do Safari se o app não estiver instalado.
+- O app instalado na tela inicial não sofre a limpeza automática de 7 dias do Safari, mas o iOS ainda pode remover dados se o aparelho ficar sem espaço. O app pede armazenamento persistente para reduzir esse risco, sem garantia.
+- Os dados ficam presos ao endereço do site. Não renomeie o site no Netlify nem troque o domínio: quem já usa o app perderia o acesso ao cofre salvo no aparelho, e teria de restaurar pelo backup.
+- "Último backup" registra que o arquivo foi baixado ou que a folha de compartilhar foi concluída. O app não consegue confirmar que o arquivo foi de fato salvo no iCloud Drive.
 - A senha mestre é irrecuperável. Sem ela, nem o backup nem o cofre abrem. Não existe "esqueci a senha".
-- O bloqueio automático ocorre após 5 minutos sem uso e, no celular ou no app instalado, ao sair para o segundo plano.
+- O bloqueio automático ocorre após 5 minutos sem uso e, no celular ou no app instalado, ao sair para o segundo plano. Um cadastro que estava aberto é guardado criptografado e reaberto depois de digitar a senha mestre.
 - A limpeza da área de transferência após 60 segundos só ocorre quando o navegador já concedeu permissão de leitura da área de transferência. Nenhum pedido de permissão é feito; no iOS, na prática, não ocorre.
 - Precisa de um navegador com WebCrypto (Chrome, Edge, Firefox ou Safari atualizados) e de https ou localhost.

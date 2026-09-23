@@ -31,6 +31,9 @@ function fmt(ts){ if(!ts) return null; const d=new Date(ts); return d.toLocaleDa
 function daysAgo(ts){ return ts ? (Date.now()-ts)/86400000 : Infinity; }
 const isTouch = matchMedia('(pointer:coarse)').matches;
 const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const DRAFT_KEY = 'rosen.draft';
+let shareFailed = false;
 
 // ---------- pré-requisitos ----------
 function fatal(msg){ const f=$('fatal'); f.textContent=msg; f.classList.remove('hidden'); $('lockScreen').classList.add('hidden'); }
@@ -141,7 +144,7 @@ async function shareBackup(){
     await navigator.share({files:[f], title:'Backup do Rosen'});
     markBackup(); toast('Backup compartilhado');
   } catch(e){
-    if(!e || e.name!=='AbortError') toast('Não foi possível compartilhar o backup. Tente "Baixar backup".');
+    if(!e || e.name!=='AbortError'){ shareFailed=true; toast('Não foi possível compartilhar o backup. Abra o menu de novo e use "Baixar backup".', 4000); }
   } finally { resume(); }
 }
 
@@ -226,8 +229,13 @@ function scheduleClipClear(txt){
 // ---------- bloqueio ----------
 function pauseLock(){ lockPaused++; let done=false; return ()=>{ if(!done){ done=true; lockPaused=Math.max(0,lockPaused-1); if(key) bumpLock(); } }; }
 function showLock(msg){
+  if(key && kdf && vault && $('entryModal').classList.contains('on')){
+    const d = readEntryForm();
+    if(draftWorthKeeping(d)) stashDraft(key, kdf, d);
+  }
   key=null; vault=null; kdf=null; editingId=null; pendingImport=null; clearTimeout(lockTimer);
   closeMenu(); closeAllModals();
+  ['entryForm','pwForm','importForm'].forEach(f=>$(f).reset()); setEye('fPw', false); $('orgList').innerHTML='';
   $('list').innerHTML=''; $('q').value='';
   $('app').classList.remove('on'); $('lockScreen').classList.remove('hidden');
   const has = !!store.get(LS_KEY);
@@ -240,6 +248,39 @@ function showApp(){
   $('lockScreen').classList.add('hidden'); $('app').classList.add('on');
   filter='Todos';
   render(); renderStatus(); bumpLock();
+  askPersistentStorage();
+}
+// Pede ao navegador para não apagar os dados sob falta de espaço. Sem efeito visível se negado.
+function askPersistentStorage(){
+  try { if(navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=> p || navigator.storage.persist()).catch(()=>{}); } catch(e){}
+}
+
+// ---------- rascunho do cadastro (sobrevive ao bloqueio, sempre criptografado) ----------
+function readEntryForm(){ return {id:editingId, name:$('fName').value, cat:$('fCat').value, org:$('fOrg').value, login:$('fLogin').value, pw:$('fPw').value, url:$('fUrl').value, notes:$('fNotes').value}; }
+function draftWorthKeeping(d){
+  const cur = d.id ? vault.entries.find(x=>x.id===d.id) : null;
+  if(cur) return ['name','cat','org','login','pw','url','notes'].some(k => (d[k]||'') !== (cur[k]||''));
+  return !!(d.name||d.org||d.login||d.pw||d.url||d.notes);
+}
+async function stashDraft(k, s, d){
+  try {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, enc.encode(JSON.stringify(d)));
+    store.set(DRAFT_KEY, JSON.stringify({salt:s.salt, iv:b64(iv), ct:b64(new Uint8Array(ct))}));
+  } catch(e){ /* sem rascunho: o cadastro já salvo não é afetado */ }
+}
+function dropDraft(){ delete mem[DRAFT_KEY]; try { localStorage.removeItem(DRAFT_KEY); } catch(e){} }
+async function restoreDraft(){
+  const str = store.get(DRAFT_KEY); if(!str) return;
+  dropDraft();
+  try {
+    const d = JSON.parse(str);
+    if(!key || !kdf || !vault || d.salt!==kdf.salt) return;
+    const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:unb64(d.iv)}, key, unb64(d.ct));
+    const f = JSON.parse(dec.decode(pt));
+    openEntry(f.id && vault.entries.some(x=>x.id===f.id) ? f.id : null, f);
+    toast('O cadastro que estava aberto foi recuperado. Confira e toque em Salvar.', 4000);
+  } catch(e){ /* rascunho de outra senha mestre ou corrompido: descartado */ }
 }
 function bumpLock(){ clearTimeout(lockTimer); if(key) lockTimer=setTimeout(()=>{ if(lockPaused) { bumpLock(); return; } showLock('Rosen bloqueado por inatividade'); }, LOCK_MS); }
 ['click','keydown','mousemove','touchstart','scroll'].forEach(ev=>document.addEventListener(ev, ()=>{ if(key) bumpLock(); }, {passive:true}));
@@ -266,11 +307,11 @@ async function setup(){
     kdf = {salt:b64(salt), iter:ITER};
     key = await deriveKey(pw, salt, ITER);
     vault = {entries:[], updated:Date.now()};
-    meta = {}; saveMeta();
+    meta = {}; saveMeta(); dropDraft();
     await persist();
     $('setupPw').value=''; $('setupPw2').value=''; meter($('setupMeter'),'');
     showApp();
-    toast('Rosen criado. Baixe um backup assim que cadastrar as primeiras senhas.', 4000);
+    toast('Rosen criado. Faça um backup assim que cadastrar as primeiras senhas.', 4000);
   } catch(e){ key=null; vault=null; err.textContent='Não foi possível criar o cofre: o navegador recusou a operação de criptografia. Recarregue a página e tente de novo.'; }
   btn.disabled=false; btn.textContent='Criar Rosen';
 }
@@ -289,6 +330,7 @@ async function unlock(){
     key=k; kdf=blob.kdf; vault=data;
     $('unlockPw').value='';
     showApp();
+    await restoreDraft();
     reconnectFile();
   } catch(e){ err.textContent='Senha mestre incorreta. Verifique maiúsculas e o teclado e tente de novo.'; }
   btn.disabled=false; btn.textContent='Abrir Rosen';
@@ -304,6 +346,14 @@ $('fileInput').addEventListener('change', async ()=>{
   try { blob = JSON.parse(await f.text()); } catch(e){ blob=null; }
   if(!validBlob(blob)){ toast('Este arquivo não é um backup do Rosen (esperado um .rosen gerado pelo próprio app). Escolha outro arquivo.', 5000); return; }
   pendingImport = blob;
+  let local=null; try { local=JSON.parse(store.get(LS_KEY)||'null'); } catch(e){ local=null; }
+  let warn='Isso substitui o que está salvo neste aparelho pelo conteúdo do backup.';
+  if(validBlob(local)){
+    const n = vault ? vault.entries.length : null;
+    warn = 'Isso substitui ' + (n!==null ? `as ${n} senha(s) salvas neste aparelho` : 'o cofre salvo neste aparelho') + ' pelo conteúdo do backup.';
+    if(blob.updated && local.updated && blob.updated < local.updated) warn += ` Atenção: este backup (${fmt(blob.updated)}) é mais antigo que os dados daqui (${fmt(local.updated)}). O que foi cadastrado ou alterado depois dele será perdido. Se não tiver certeza, cancele e faça antes um backup dos dados atuais.`;
+  }
+  $('importWarn').textContent = warn;
   $('importInfo').textContent = `Arquivo: ${f.name}${blob.updated?' (salvo em '+fmt(blob.updated)+')':''}`;
   $('impPw').value=''; $('impErr').textContent='';
   openModal('importModal', 'impPw');
@@ -318,7 +368,7 @@ $('importForm').addEventListener('submit', async ev=>{
     const {k, data} = await decryptBlob(pendingImport, pw);
     key=k; kdf=pendingImport.kdf; vault=data;
     const saved = store.set(LS_KEY, JSON.stringify(pendingImport));
-    meta.lastBackup = pendingImport.updated || Date.now(); meta.dirtySince=null; saveMeta();
+    meta.lastBackup = pendingImport.updated || Date.now(); meta.dirtySince=null; saveMeta(); dropDraft();
     closeModal('importModal'); pendingImport=null;
     showApp(); toast(saved ? `Restaurado: ${vault.entries.length} senha(s)` : `Aberto com ${vault.entries.length} senha(s), mas não foi possível gravar neste navegador.`, 4000);
     reconnectFile();
@@ -350,18 +400,19 @@ $('pwForm').addEventListener('submit', async ev=>{
 });
 
 // ---------- modais ----------
-function openModal(id, focusId){ $(id).classList.add('on'); document.body.style.overflow='hidden'; if(focusId) setTimeout(()=>$(focusId).focus(),60); }
+function openModal(id, focusId){ $(id).classList.add('on'); document.body.style.overflow='hidden'; if(focusId) setTimeout(()=>{ if(!$(id).contains(document.activeElement)) $(focusId).focus(); },60); }
 function closeModal(id){ $(id).classList.remove('on'); if(!document.querySelector('.modal.on')) document.body.style.overflow=''; }
 function closeAllModals(){ document.querySelectorAll('.modal.on').forEach(m=>m.classList.remove('on')); document.body.style.overflow=''; }
 
 // ---------- registros ----------
-function openEntry(id){
+function openEntry(id, draft){
   editingId=id||null;
-  const e = id ? vault.entries.find(x=>x.id===id) : null;
-  $('entryTitle').textContent = e ? 'Editar senha' : 'Nova senha';
+  const cur = id ? vault.entries.find(x=>x.id===id) : null;
+  const e = draft || cur;
+  $('entryTitle').textContent = cur ? 'Editar senha' : 'Nova senha';
   $('fName').value=e?.name||''; $('fCat').value=CATS.includes(e?.cat)?e.cat:'Hospital'; $('fOrg').value=e?.org||'';
   $('fLogin').value=e?.login||''; $('fPw').value=e?.pw||''; setEye('fPw', false); $('fUrl').value=e?.url||''; $('fNotes').value=e?.notes||'';
-  $('deleteBtn').classList.toggle('hidden', !e); $('entryErr').textContent='';
+  $('deleteBtn').classList.toggle('hidden', !cur); $('entryErr').textContent='';
   $('orgList').innerHTML = [...new Set(vault.entries.map(x=>x.org).filter(Boolean))].map(o=>`<option value="${esc(o)}">`).join('');
   openModal('entryModal', 'fName');
   $('entryForm').querySelector('.dialog-body').scrollTop=0;
@@ -408,7 +459,7 @@ function renderStatus(){
   const b=$('banner'); b.className='banner hidden'; b.innerHTML='';
   if(!fileHandle){
     if(n>0 && !meta.lastBackup){ b.className='banner'; b.innerHTML='<span class="grow">Suas senhas estão salvas só neste navegador. Se o histórico for limpo ou o aparelho trocar, elas somem. Faça um backup agora.</span><button class="btn sm primary" id="bannerExport" type="button">Fazer backup</button>'; }
-    else if(meta.dirtySince && daysAgo(meta.dirtySince)>3){ b.className='banner warn'; b.innerHTML='<span class="grow">Há alterações não incluídas no último backup.</span><button class="btn sm" id="bannerExport" type="button">Fazer backup</button>'; }
+    else if(n>0 && meta.dirtySince){ b.className='banner warn'; b.innerHTML='<span class="grow">Há senhas cadastradas ou alteradas que ainda não estão em nenhum backup.</span><button class="btn sm" id="bannerExport" type="button">Fazer backup</button>'; }
     const be=$('bannerExport'); if(be) be.onclick=()=> canShare() && isTouch ? shareBackup() : exportBackup();
   }
 }
@@ -470,7 +521,7 @@ $('shareBtn').onclick=()=>{ closeMenu(); shareBackup(); };
 $('linkFileBtn').onclick=()=>{ closeMenu(); linkFile(); };
 $('lockBtn').onclick=()=>{ closeMenu(); showLock(); };
 $('q').addEventListener('input', render);
-$('menuBtn').onclick=e=>{ e.stopPropagation(); const open=$('menu').classList.toggle('open'); $('menuBtn').setAttribute('aria-expanded', String(open)); if(open){ $('shareBtn').classList.toggle('hidden', !canShare()); } };
+$('menuBtn').onclick=e=>{ e.stopPropagation(); const open=$('menu').classList.toggle('open'); $('menuBtn').setAttribute('aria-expanded', String(open)); if(open){ const sh=canShare(); $('shareBtn').classList.toggle('hidden', !sh); $('exportBtn').classList.toggle('hidden', isIOS && sh && !shareFailed); } };
 function closeMenu(){ $('menu').classList.remove('open'); $('menuBtn').setAttribute('aria-expanded','false'); }
 document.addEventListener('click', e=>{ if(!$('menu').contains(e.target)) closeMenu(); });
 $('statusSum').onclick=()=>{ const open=$('status').classList.toggle('open'); $('statusSum').setAttribute('aria-expanded', String(open)); };
@@ -481,6 +532,8 @@ document.addEventListener('keydown', e=>{
   if($('pwModal').classList.contains('on')) closeModal('pwModal');
   if($('importModal').classList.contains('on')){ closeModal('importModal'); pendingImport=null; }
 });
+if(isIOS){ $('fileInput').removeAttribute('accept'); $('linkFileBtn').classList.add('hidden'); $('linkFileDesc').classList.add('hidden'); }
+if(isIOS && !isStandalone) $('installNotice').classList.remove('hidden');
 if(!hasFSA){ $('linkFileDesc').textContent='Disponível apenas no Chrome ou Edge de computador. Aqui, use o backup manual.'; }
 if(isTouch){ $('exportDesc').textContent='Arquivo .rosen. Só abre com a senha mestre. No iPhone, prefira "Compartilhar backup" e salve em Arquivos (iCloud Drive).'; }
 window.addEventListener('beforeunload', e=>{ if(key && vault && vault.entries.length && !fileHandle && !meta.lastBackup){ e.preventDefault(); e.returnValue=''; } });

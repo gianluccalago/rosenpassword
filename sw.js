@@ -1,6 +1,6 @@
 /* Rosen service worker: cache-first apenas para os arquivos do próprio app.
    Nunca toca em dados: o cofre vive só em localStorage/IndexedDB e nunca passa pela rede. */
-const VERSION = 'rosen-v1.0.0';
+const VERSION = 'rosen-v1.1.0';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-512-maskable.png', 'icons/apple-touch-icon.png'];
 const SCOPE = new URL('./', self.location).href;

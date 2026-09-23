@@ -161,7 +161,7 @@ input[type=search]::-webkit-search-decoration{-webkit-appearance:none}
   .search{max-width:none}
   .menu-label{display:none}
   .menu-btn{width:var(--tap);height:var(--tap);padding:0;min-height:var(--tap)}
-  .menu .pop{position:fixed;left:12px;right:12px;top:auto;bottom:calc(12px + var(--sab));min-width:0}
+  .menu .pop{position:absolute;right:0;top:calc(100% + 8px);width:calc(100vw - 28px - var(--sal) - var(--sar));max-width:360px;min-width:0;max-height:calc(100dvh - 80px - var(--sat));overflow:auto}
   .wrap{padding:14px calc(14px + var(--sar)) calc(var(--fab-h) + 44px + var(--sab)) calc(14px + var(--sal))}
   .status-sum{display:flex}
   .status-list{display:none;flex-direction:column;align-items:flex-start;gap:6px;padding:10px 12px 4px}
